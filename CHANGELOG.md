@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Добавлен адаптер Neon PostgreSQL с транзакциями, неизменяемыми RAW-оригиналами, append-only sync log, токенами устройств и сессиями.
+- Добавлены Vercel Function `/api/*`, `vercel.json` и инструкции для независимой от ПК синхронизации Android APK через Vercel + Neon.
+- Команды управления устройствами и seed теперь работают и с `DATABASE_URL`, не только с локальной SQLite.
+
 ## 0.1.1 — 2026-09-06
 
 - Добавлена Capacitor Android-обёртка API 24+ с app ID `app.vaultterminal.notebook`, нативной иконкой и deep-link scheme `vaultterminal://`.

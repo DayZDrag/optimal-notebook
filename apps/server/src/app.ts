@@ -38,53 +38,53 @@ export function createApp(store: StorageAdapter, options: ServerOptions) {
     if (c.req.path === '/api/v1/session' && c.req.method === 'POST') { await next(); return; }
     let device: Device | undefined;
     if (!options.authRequired) {
-      store.addDevice(deviceId.data,'Локальное устройство',c.req.header('X-Device-Role') === 'desktop' ? 'desktop' : 'client');
-      device=store.getDevice(deviceId.data);
+      await store.addDevice(deviceId.data,'Локальное устройство',c.req.header('X-Device-Role') === 'desktop' ? 'desktop' : 'client');
+      device=await store.getDevice(deviceId.data);
     } else {
       const bearer=c.req.header('Authorization')?.match(/^Bearer (.+)$/)?.[1];
       const cookie=getCookie(c,'vt_session');
-      device=bearer ? store.authenticate(bearer) : cookie ? store.authenticateSession(cookie) : undefined;
+      device=bearer ? await store.authenticate(bearer) : cookie ? await store.authenticateSession(cookie) : undefined;
     }
     if (!device) return c.json({error: 'Подключите устройство в настройках. Записи сохранены локально.'},401);
     c.set('device',device); await next();
   });
   app.post('/api/v1/session', async c => {
     const {token} = z.object({token:z.string().min(20).max(200)}).parse(await c.req.json());
-    const device=store.authenticate(token);
+    const device=await store.authenticate(token);
     if (!device || device.role !== 'client') return c.json({error:'Токен не найден, отозван или предназначен для ПК-агента'},401);
-    const session=randomBytes(32).toString('base64url'); store.addSession(session,device.id);
+    const session=randomBytes(32).toString('base64url'); await store.addSession(session,device.id);
     setCookie(c,'vt_session',session,{httpOnly:true,secure:!!options.secureCookies,sameSite:'Strict',path:'/api',maxAge:30*86400});
     return c.json({device:{id:device.id,name:device.name}});
   });
   app.post('/api/v1/notes', async c => {
     const input=noteInputSchema.parse(await c.req.json());
-    const result=store.putNote(input); return c.json(result,result.created ? 201 : 200);
+    const result=await store.putNote(input); return c.json(result,result.created ? 201 : 200);
   });
-  app.get('/api/v1/notes', c => c.json({notes:store.listNotes()}));
-  app.get('/api/v1/notes/:id', c => {
-    const note=store.getNote(idSchema.parse(c.req.param('id')));
+  app.get('/api/v1/notes', async c => c.json({notes:await store.listNotes()}));
+  app.get('/api/v1/notes/:id', async c => {
+    const note=await store.getNote(idSchema.parse(c.req.param('id')));
     return note ? c.json({note}) : c.json({error:'Заметка не найдена'},404);
   });
-  app.get('/api/v1/sync', c => {
+  app.get('/api/v1/sync', async c => {
     const cursor=z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).parse(c.req.query('cursor') ?? '0');
-    return c.json(store.sync(cursor));
+    return c.json(await store.sync(cursor));
   });
   app.post('/api/v1/sync/ack', async c => {
     const input=z.object({cursor:z.coerce.number().int().nonnegative(),notes:z.array(z.object({id:idSchema,path:z.string().refine(safeVaultPath)})).max(200).default([])}).parse(await c.req.json());
     if (input.notes.length && c.get('device').role !== 'desktop') return c.json({error:'Требуется токен ПК-агента'},403);
-    store.acknowledge(c.get('device').id,input.cursor,input.notes); return c.json({ok:true});
+    await store.acknowledge(c.get('device').id,input.cursor,input.notes); return c.json({ok:true});
   });
-  app.get('/api/v1/reminders', c => c.json({reminders:store.listReminders()}));
+  app.get('/api/v1/reminders', async c => c.json({reminders:await store.listReminders()}));
   app.post('/api/v1/reminders', async c => {
     const input=reminderMutationSchema.parse(await c.req.json());
     if (input.baseVersion !== 0) return c.json({error:'Для новой записи baseVersion должен быть 0'},400);
-    const result=store.mutateReminder(input); return c.json(result,result.created ? 201 : 200);
+    const result=await store.mutateReminder(input); return c.json(result,result.created ? 201 : 200);
   });
   app.on(['PATCH','DELETE'],'/api/v1/reminders/:id', async c => {
     const input=reminderMutationSchema.parse(await c.req.json());
     if (input.reminder.id !== c.req.param('id') || input.baseVersion < 1) return c.json({error:'Некорректный ID или baseVersion'},400);
     if (c.req.method === 'DELETE' && input.reminder.status !== 'CANCELLED') return c.json({error:'Удаление должно сохранять CANCELLED'},400);
-    const result=store.mutateReminder(input); return c.json(result);
+    const result=await store.mutateReminder(input); return c.json(result);
   });
   app.onError((error,c) => {
     if (error instanceof ZodError || error instanceof SyntaxError) return c.json({error:'Некорректный формат данных', details:error instanceof ZodError ? error.issues.map(i=>({path:i.path.join('.'),message:i.message})) : undefined},400);

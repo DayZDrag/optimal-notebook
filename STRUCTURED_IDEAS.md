@@ -13,7 +13,7 @@
 - [ ] Реализовать Web Push / нативный планировщик для закрытого приложения.
 - [ ] Проверить публичные возможности Chatting with AI перед реализацией AI-моста.
 - [ ] Реализовать последовательную файловую AI-очередь, классификацию с confidence threshold и Reverse Ask.
-- [ ] Добавить PostgreSQL-адаптер для production.
+- [x] Добавить PostgreSQL-адаптер для Vercel production и конфигурацию Vercel + Neon.
 - [x] Добавить Capacitor Android shell и офлайн APK с экспортом RAW через Documents/Share.
 - [ ] Добавить Android local notifications, Share Sheet как входной канал и доступ к выбранной папке vault через SAF.
 - [ ] Добавить whitelist-зеркало vault с версиями и конфликтными копиями.

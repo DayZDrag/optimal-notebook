@@ -92,16 +92,24 @@ npm run desktop:sync -- --watch
 
 ## Доступ с телефона / размещение сервера
 
-Для доступа вне компьютера нужен HTTPS reverse proxy с фронтендом и `/api` на одном origin. Текущая SQLite-реализация предназначена для одного процесса сервера и одного пользователя. Многопользовательский режим и PostgreSQL-адаптер пока не реализованы.
+Для доступа вне компьютера подготовлен deployment на Vercel Functions с управляемой PostgreSQL-базой Neon. Локальная SQLite-реализация остаётся для разработки и тестов; production не хранит данные в файловой системе Vercel.
 
 ```dotenv
-AUTH_REQUIRED=true
-NODE_ENV=production
-# Native Android app has the local Capacitor origin below.
+DATABASE_URL=postgresql://... # Neon, добавляется интеграцией Vercel
+# Адрес Vercel-проекта и origin нативной Capacitor-обёртки.
 WEB_ORIGIN=https://notes.example.com,https://localhost
-HOST=127.0.0.1
-PORT=8787
 ```
+
+### Развёртывание на Vercel
+
+1. Загрузите репозиторий в GitHub и импортируйте его в Vercel.
+2. В проекте Vercel откройте **Storage → Create → Neon**, создайте базу и подключите её к production. Интеграция передаст `DATABASE_URL` в переменные окружения.
+3. В **Settings → Environment Variables** добавьте `WEB_ORIGIN=https://<ваш-проект>.vercel.app,https://localhost`. При собственном домене замените первый адрес на него.
+4. Выполните Deploy. `vercel.json` собирает веб-интерфейс, направляет `/api/*` в Vercel Function и отдаёт SPA для остальных URL.
+5. Скопируйте `DATABASE_URL` из Vercel в локальный `.env` **только на время управления устройствами**, затем выполните `npm run device:add -- Телефон`. Команда создаёт токен непосредственно в Neon; не добавляйте этот файл в Git.
+6. В APK откройте «Настройки», задайте HTTPS-адрес Vercel-проекта, вставьте показанный токен и нажмите «Подключить устройство».
+
+После подключения можно удалить `DATABASE_URL` из локального `.env`: APK и Vercel работают без включённого ПК. Для ПК-агента добавьте также `SERVER_URL=https://<ваш-проект>.vercel.app`, `DEVICE_TOKEN` и `VAULT_PATH` в локальный `.env`.
 
 ```sh
 npm run device:add -- Телефон
