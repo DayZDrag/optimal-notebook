@@ -1,1 +1,1 @@
-export { default } from '../dist/vercel.mjs';
+export { default as fetch } from '../dist/vercel.mjs';
