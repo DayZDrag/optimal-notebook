@@ -148,13 +148,22 @@ type PgRow = Record<string, unknown>;
 const asDevice = (row: PgRow): Device => ({id:String(row.id),name:String(row.name),role:row.role as Device['role'],revoked:row.revoked ? 1 : 0});
 const asNote = (row: PgRow): Note => ({id:String(row.id),deviceId:String(row.device_id),text:String(row.text),contentType:'text/plain',clientCreatedAt:String(row.client_created_at),source:String(row.source),serverReceivedAt:String(row.server_received_at),status:row.status as Note['status'],...(row.vault_path ? {vaultPath:String(row.vault_path)} : {})});
 
+export interface PostgresStoreOptions {
+  /** Schema setup is an admin task, not a request-path operation in serverless production. */
+  initializeSchema?: boolean;
+  maxConnections?: number;
+}
+
 /** Persistent, serverless-safe storage for Vercel Functions and Neon PostgreSQL. */
 export class PostgresStore implements StorageAdapter {
   readonly pool: Pool;
   private readonly ready: Promise<void>;
-  constructor(connectionString: string) {
-    this.pool=new Pool({connectionString,ssl: connectionString.includes('localhost') ? false : {rejectUnauthorized:true},max:5});
-    this.ready=this.pool.query(postgresSchema).then(()=>undefined);
+  constructor(connectionString: string, options: PostgresStoreOptions={}) {
+    this.pool=new Pool({
+      connectionString, ssl: connectionString.includes('localhost') ? false : {rejectUnauthorized:true},
+      max:options.maxConnections ?? 5, connectionTimeoutMillis:8_000, query_timeout:10_000, idleTimeoutMillis:10_000,
+    });
+    this.ready=options.initializeSchema === false ? Promise.resolve() : this.pool.query(postgresSchema).then(()=>undefined);
   }
   private async query<T extends PgRow = PgRow>(text: string, values: unknown[]=[]): Promise<T[]> { await this.ready; return (await this.pool.query<T>(text,values)).rows; }
   private async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> { await this.ready; const client=await this.pool.connect(); try { await client.query('BEGIN'); const result=await fn(client); await client.query('COMMIT'); return result; } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } }

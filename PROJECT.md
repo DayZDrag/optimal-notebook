@@ -8,7 +8,7 @@
 
 ## Состояние этапов
 
-- MVP-1: реализованы React/PWA, IndexedDB, постоянная очередь, Hono, серверный журнал, retry и экспорт RAW. Локальная разработка использует SQLite; Vercel production — Neon PostgreSQL.
+- MVP-1: реализованы React/PWA, IndexedDB, постоянная очередь, Hono, серверный журнал, retry и экспорт RAW. Локальная разработка использует SQLite; Vercel production — Neon PostgreSQL без DDL в request path.
 - MVP-2: реализованы CRUD, Done/Snooze, конфликты версий, уведомления в открытом приложении. Web Push и точный фоновый планировщик ещё нужны для полного MVP-2.
 - MVP-3: реализован Node/TypeScript ПК-агент, Markdown Inbox, ACK, повторный запуск и сохранение конфликтов. Подключение реального vault требует явного VAULT_PATH.
 - MVP-4/5: AI-сортировка и Reverse Ask ещё не реализованы. Экран поиска пока выполняет локальный поиск по тексту.
