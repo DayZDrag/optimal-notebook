@@ -10,4 +10,4 @@ if (!origins.length || origins.some(origin=>!origin.startsWith('https://'))) thr
 const globalStore=globalThis as typeof globalThis & {vaultTerminalStore?: PostgresStore};
 const store=globalStore.vaultTerminalStore ??= new PostgresStore(databaseUrl);
 
-export default createApp(store,{authRequired:true,origin:origins,secureCookies:true}).fetch;
+export default createApp(store,{authRequired:true,origin:origins,secureCookies:true});
