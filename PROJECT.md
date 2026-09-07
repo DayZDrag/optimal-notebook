@@ -12,7 +12,7 @@
 - MVP-2: реализованы CRUD, Done/Snooze, конфликты версий, уведомления в открытом приложении. Web Push и точный фоновый планировщик ещё нужны для полного MVP-2.
 - MVP-3: реализован Node/TypeScript ПК-агент, Markdown Inbox, ACK, повторный запуск и сохранение конфликтов. Подключение реального vault требует явного VAULT_PATH.
 - MVP-4/5: AI-сортировка и Reverse Ask ещё не реализованы. Экран поиска пока выполняет локальный поиск по тексту.
-- MVP-6: создана Capacitor Android-обёртка и проверенная debug APK для API 24+. Она содержит offline UI, очередь, экспорт в Documents/Share и deep-link scheme. SAF, local notifications и Share Sheet как входной канал ещё не реализованы.
+- MVP-6: создана Capacitor Android-обёртка и проверенная debug APK для API 24+. Она содержит offline UI, очередь, экспорт в Documents/Share, deep-link scheme и нативную вставку токена устройства из системного буфера. SAF, local notifications и Share Sheet как входной канал ещё не реализованы.
 - MVP-7: зеркало vault отложено по спецификации.
 
 ## Технические решения

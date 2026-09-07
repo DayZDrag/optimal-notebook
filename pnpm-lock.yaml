@@ -11,6 +11,9 @@ importers:
       '@capacitor/android':
         specifier: ^8.0.0
         version: 8.5.1(@capacitor/core@8.5.1)
+      '@capacitor/clipboard':
+        specifier: 8.0.0
+        version: 8.0.0(@capacitor/core@8.5.1)
       '@capacitor/core':
         specifier: ^8.0.0
         version: 8.5.1
@@ -633,6 +636,11 @@ packages:
     resolution: {integrity: sha512-LKQFSyLg1QbTN6CGDoFqeRtAlj8C3c9OymP8OuhwlmkbSQwh9i1HQjwUCaNyVem2XkY9rv0v2UOfVlgoxH5pAw==}
     engines: {node: '>=22.0.0'}
     hasBin: true
+
+  '@capacitor/clipboard@8.0.0':
+    resolution: {integrity: sha512-nRgx07ThaoxOaTObZo/G39se9wA3oVgP0ooNO539P1TOZzWObwuXWObZgvaRJNpJfHVYcNe45Ylb8nlYl7VleA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/core@8.5.1':
     resolution: {integrity: sha512-IOQ7ynG1qgrJ/RLuCO3WgyRGmkmmG/cdStRR4ftU2dWEN1FdtLrnI/XpZmZuUsOEHEnzBRJY/PmRH8eTLiXfhA==}
@@ -3591,6 +3599,10 @@ snapshots:
       xml2js: 0.6.2
     transitivePeerDependencies:
       - supports-color
+
+  '@capacitor/clipboard@8.0.0(@capacitor/core@8.5.1)':
+    dependencies:
+      '@capacitor/core': 8.5.1
 
   '@capacitor/core@8.5.1':
     dependencies:

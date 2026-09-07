@@ -15,6 +15,7 @@
 - [ ] Реализовать последовательную файловую AI-очередь, классификацию с confidence threshold и Reverse Ask.
 - [x] Добавить PostgreSQL-адаптер для Vercel production и конфигурацию Vercel + Neon.
 - [x] Добавить Capacitor Android shell и офлайн APK с экспортом RAW через Documents/Share.
+- [x] Сделать подключение Android к Vercel удобным: вставка токена из системного буфера и cross-origin сессия Capacitor.
 - [ ] Добавить Android local notifications, Share Sheet как входной канал и доступ к выбранной папке vault через SAF.
 - [ ] Добавить whitelist-зеркало vault с версиями и конфликтными копиями.
 

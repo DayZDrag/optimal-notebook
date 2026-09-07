@@ -12,9 +12,9 @@ import { APP_VERSION, PROTOCOL_VERSION, type NoteInput, type Reminder } from '..
 
 const stores:SqliteStore[]=[]; const databases:VaultDB[]=[]; const temporary:string[]=[];
 afterEach(async()=>{for(const d of databases.splice(0))await d.delete();for(const s of stores.splice(0))s.close();for(const p of temporary.splice(0))rmSync(p,{recursive:true,force:true});});
-function setup(authRequired=false) {
+function setup(authRequired=false,secureCookies=false) {
   const store=new SqliteStore(':memory:');stores.push(store);
-  const app=createApp(store,{authRequired,origin:'http://localhost:5173'});
+  const app=createApp(store,{authRequired,origin:'http://localhost:5173',secureCookies});
   const database=new VaultDB('test-'+randomUUID());databases.push(database);
   const fetcher:typeof fetch=async(input,init)=>app.request('http://localhost'+String(input),init);
   return {store,app,database,fetcher};
@@ -124,11 +124,11 @@ describe('reminders and optimistic concurrency',()=>{
 });
 describe('device authentication',()=>{
   it('hashes tokens, creates HttpOnly sessions and revokes access',async()=>{
-    const {app,store}=setup(true);const token='test-secret-token-that-is-long-enough';const id=randomUUID();store.addDevice(id,'Phone','client',token);
+    const {app,store}=setup(true,true);const token='test-secret-token-that-is-long-enough';const id=randomUUID();store.addDevice(id,'Phone','client',token);
     const row=store.db.prepare('SELECT token_hash FROM devices WHERE id=?').get(id);expect(row?.token_hash).not.toBe(token);
     expect((await app.request('/api/v1/notes',{headers})).status).toBe(401);
     const pairing=await app.request('/api/v1/session',{method:'POST',headers,body:JSON.stringify({token})});
-    expect(pairing.status).toBe(200);expect(pairing.headers.get('set-cookie')).toContain('HttpOnly');
+    expect(pairing.status).toBe(200);expect(pairing.headers.get('set-cookie')).toContain('HttpOnly');expect(pairing.headers.get('set-cookie')).toContain('Secure');expect(pairing.headers.get('set-cookie')).toContain('SameSite=None');
     const authenticated={...headers,Cookie:pairing.headers.get('set-cookie')!.split(';')[0]};
     expect((await app.request('/api/v1/notes',{headers:authenticated})).status).toBe(200);
     store.revokeDevice(id);expect((await app.request('/api/v1/notes',{headers:authenticated})).status).toBe(401);

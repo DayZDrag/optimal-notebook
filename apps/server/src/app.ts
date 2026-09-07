@@ -53,7 +53,10 @@ export function createApp(store: StorageAdapter, options: ServerOptions) {
     const device=await store.authenticate(token);
     if (!device || device.role !== 'client') return c.json({error:'Токен не найден, отозван или предназначен для ПК-агента'},401);
     const session=randomBytes(32).toString('base64url'); await store.addSession(session,device.id);
-    setCookie(c,'vt_session',session,{httpOnly:true,secure:!!options.secureCookies,sameSite:'Strict',path:'/api',maxAge:30*86400});
+    // Capacitor runs at https://localhost while production API is a separate HTTPS origin.
+    // Its session cookie must opt in to that cross-origin request; CORS and Origin checks above
+    // still reject state-changing requests from every origin except the configured application.
+    setCookie(c,'vt_session',session,{httpOnly:true,secure:!!options.secureCookies,sameSite:options.secureCookies ? 'None' : 'Strict',path:'/api',maxAge:30*86400});
     return c.json({device:{id:device.id,name:device.name}});
   });
   app.post('/api/v1/notes', async c => {
