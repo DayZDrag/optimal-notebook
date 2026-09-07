@@ -15,6 +15,7 @@
 - [ ] Реализовать последовательную файловую AI-очередь, классификацию с confidence threshold и Reverse Ask.
 - [x] Добавить PostgreSQL-адаптер для Vercel production и конфигурацию Vercel + Neon.
 - [x] Убрать инициализацию схемы Neon из Vercel request path, чтобы pairing не зависел от холодного старта.
+- [x] Передавать POST-body Vercel напрямую в Hono для pairing и синхронизации без зависания.
 - [x] Добавить Capacitor Android shell и офлайн APK с экспортом RAW через Documents/Share.
 - [x] Сделать подключение Android к Vercel удобным: вставка токена из системного буфера, автоматическое сохранение адреса и проверяемая cross-origin сессия Capacitor.
 - [ ] Добавить Android local notifications, Share Sheet как входной канал и доступ к выбранной папке vault через SAF.
