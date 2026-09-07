@@ -8,6 +8,10 @@
 - В Android добавлена нативная кнопка «Вставить из буфера» для токена устройства; поле отключает автокоррекцию и не сохраняет токен.
 - Сессия Vercel для Capacitor использует `Secure; SameSite=None` cookie, необходимую для HTTPS-origin `https://localhost`; проверка Origin остаётся включённой.
 
+## 0.1.1 — 2026-09-07
+
+- Новая Android debug-сборка с `versionCode` 2: устанавливается поверх 0.1.0 без удаления локальных RAW-заметок.
+
 ## 0.1.1 — 2026-09-06
 
 - Добавлена Capacitor Android-обёртка API 24+ с app ID `app.vaultterminal.notebook`, нативной иконкой и deep-link scheme `vaultterminal://`.

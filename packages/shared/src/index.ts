@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PROTOCOL_VERSION = '1';
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = '0.1.1';
 export const MAX_TEXT = 100_000;
 export const idSchema = z.uuid();
 export const dateSchema = z.iso.datetime({ offset: true });
