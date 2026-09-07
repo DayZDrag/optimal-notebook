@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.1.2 — 2026-09-07
+
+- Исправлена кнопка «Подключить устройство»: она сохраняет только что введённый адрес Vercel до запроса, а затем проверяет созданную сессию через API.
+- Android WebView явно разрешает Secure cross-origin cookie Vercel для origin `https://localhost`.
+- Android debug-сборка получила `versionCode` 3 и устанавливается поверх версии 0.1.1 без удаления локальных RAW-данных.
+
 - Добавлен адаптер Neon PostgreSQL с транзакциями, неизменяемыми RAW-оригиналами, append-only sync log, токенами устройств и сессиями.
 - Добавлены Vercel Function `/api/*`, `vercel.json` и инструкции для независимой от ПК синхронизации Android APK через Vercel + Neon.
 - Команды управления устройствами и seed теперь работают и с `DATABASE_URL`, не только с локальной SQLite.
