@@ -3,7 +3,7 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $workspace = (Get-Location).Path
-$unityAndroid = 'C:\Program Files\Unity\Hub\Editor\6000.5.8f1\Editor\Data\PlaybackEngines\AndroidPlayer'
+$unityAndroid = 'C:\Program Files\Unity\Hub\Editor\6000.6.0f1\Editor\Data\PlaybackEngines\AndroidPlayer'
 $sdk = Join-Path $unityAndroid 'SDK'
 $jdkRoot = Join-Path $workspace '.android-build\jdk'
 $jdk = Get-ChildItem -LiteralPath $jdkRoot -Directory -ErrorAction Stop | Select-Object -First 1 -ExpandProperty FullName
@@ -11,7 +11,7 @@ $gradle = Join-Path $workspace 'apps\android\gradlew.bat'
 $androidProject = Join-Path $workspace 'apps\android'
 $apk = Join-Path $workspace 'apps\android\app\build\outputs\apk\debug\app-debug.apk'
 $artifactDirectory = Join-Path $workspace 'artifacts'
-$artifact = Join-Path $artifactDirectory 'VaultTerminal-debug-0.1.2.apk'
+$artifact = Join-Path $artifactDirectory 'VaultTerminal-debug-0.1.3.apk'
 
 if (-not (Test-Path -LiteralPath (Join-Path $sdk 'platforms\android-36'))) { throw 'Android SDK Platform 36 is missing.' }
 if (-not (Test-Path -LiteralPath $gradle)) { throw 'Android project is missing. Run npx cap add android.' }

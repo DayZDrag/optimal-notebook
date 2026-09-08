@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { createApp } from '../apps/server/src/app';
 import { VaultDB, exportData, getSettings, preserveReminderConflict, saveNote, saveReminder } from '../apps/web/src/db';
 import { syncNow } from '../apps/web/src/sync';
 import { APP_VERSION, PROTOCOL_VERSION, type NoteInput, type Reminder } from '../packages/shared/src/index';
+import { forwardVercelRequest } from '../apps/server/src/vercel-adapter';
 
 const stores:SqliteStore[]=[]; const databases:VaultDB[]=[]; const temporary:string[]=[];
 afterEach(async()=>{for(const d of databases.splice(0))await d.delete();for(const s of stores.splice(0))s.close();for(const p of temporary.splice(0))rmSync(p,{recursive:true,force:true});});
@@ -132,5 +134,25 @@ describe('device authentication',()=>{
     const authenticated={...headers,Cookie:pairing.headers.get('set-cookie')!.split(';')[0]};
     expect((await app.request('/api/v1/notes',{headers:authenticated})).status).toBe(200);
     store.revokeDevice(id);expect((await app.request('/api/v1/notes',{headers:authenticated})).status).toBe(401);
+  });
+});
+
+describe('Vercel request bridge',()=>{
+  it('accepts Vercel pre-parsed JSON and persists the exact RAW note',async()=>{
+    const {app,store}=setup(); const input=note();
+    const request=Object.assign(Readable.from([]),{
+      method:'POST',url:'/api/v1/notes',body:input,
+      headers:{host:'localhost','content-type':'application/json','x-device-id':randomUUID(),'x-protocol-version':PROTOCOL_VERSION,'x-app-version':APP_VERSION},
+    });
+    const result:{statusCode?:number;headers:Record<string,string>;body?:Buffer}={headers:{}};
+    const response={
+      setHeader(name:string,value:string) { result.headers[name]=value; },
+      end(body:Buffer) { result.body=body; },
+      set statusCode(value:number) { result.statusCode=value; },
+      get statusCode() { return result.statusCode ?? 200; },
+    };
+    await forwardVercelRequest(app.fetch.bind(app),request as never,response as never);
+    expect(result.statusCode).toBe(201); expect(JSON.parse(result.body!.toString()).note.text).toBe(input.text);
+    expect(store.getNote(input.id)?.text).toBe(input.text);
   });
 });

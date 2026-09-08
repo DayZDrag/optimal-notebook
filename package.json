@@ -18,6 +18,8 @@
     "device:add": "tsx scripts/device.ts add",
     "device:revoke": "tsx scripts/device.ts revoke",
     "desktop:sync": "tsx apps/desktop-sync/src/index.ts",
+    "desktop:obsidian-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/watch-obsidian-sync.ps1",
+    "desktop:obsidian-autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-obsidian-sync-task.ps1",
     "android:sync": "vite build && cap sync android",
     "android:apk": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1"
   },
