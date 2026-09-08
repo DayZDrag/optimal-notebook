@@ -44,18 +44,25 @@ function Sync-WhileObsidianOpen {
   }
 }
 
-# When Obsidian is already open at task startup, sync immediately and then
-# repeat every 15 seconds until it closes.
-Sync-WhileObsidianOpen
-$source = "VaultTerminal.ObsidianStart.$PID"
-$subscription = Register-WmiEvent -Query "SELECT * FROM Win32_ProcessStartTrace WHERE ProcessName='Obsidian.exe'" -SourceIdentifier $source
+# A shared mutex makes manual starts and the Windows logon task safe together.
+# Without it, two processes can race over a single vault and hide the useful
+# result of the sync behind interleaved log entries.
+$mutex = New-Object System.Threading.Mutex($false, 'Local\VaultTerminalObsidianSync')
+if (-not $mutex.WaitOne(0, $false)) {
+  Write-SyncLog 'watcher already running; second instance skipped'
+  exit 0
+}
 try {
+  # Polling is deliberately used instead of a WMI start-event subscription:
+  # it keeps watching even if the subscription service is restarted.
   while ($true) {
-    $event = Wait-Event -SourceIdentifier $source
-    Remove-Event -EventIdentifier $event.EventIdentifier
-    Sync-WhileObsidianOpen
+    if (Get-Process -Name Obsidian -ErrorAction SilentlyContinue) {
+      Sync-WhileObsidianOpen
+    } else {
+      Start-Sleep -Seconds 2
+    }
   }
 } finally {
-  if ($subscription) { Unregister-Event -SubscriptionId $subscription.Id -ErrorAction SilentlyContinue }
-  Get-Event -SourceIdentifier $source -ErrorAction SilentlyContinue | Remove-Event
+  $mutex.ReleaseMutex() | Out-Null
+  $mutex.Dispose()
 }
