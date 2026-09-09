@@ -20,7 +20,7 @@
 - [x] Закрепить Vercel POST-путь регрессионным тестом с заранее разобранным JSON-телом.
 - [x] Добавить Capacitor Android shell и офлайн APK с экспортом RAW через Documents/Share.
 - [x] Сделать подключение Android к Vercel удобным: вставка токена из системного буфера, автоматическое сохранение адреса и проверяемая cross-origin сессия Capacitor.
-- [x] Собрать Android debug APK 0.1.3 с versionCode 4 для безопасного обновления поверх 0.1.2.
+- [x] Собрать Android debug APK 0.1.4 с versionCode 5 для безопасного обновления поверх 0.1.3.
 - [ ] Добавить Android local notifications, Share Sheet как входной канал и доступ к выбранной папке vault через SAF.
 - [ ] Добавить whitelist-зеркало vault с версиями и конфликтными копиями.
 
