@@ -148,7 +148,7 @@ npm run device:revoke -- UUID_УСТРОЙСТВА
 
 ## Android APK
 
-Готовый APK: [VaultTerminal-debug-0.1.6.apk](artifacts/VaultTerminal-debug-0.1.6.apk). Это debug-сборка для личной установки, подписанная Android Debug certificate; Google Play её не принимает. Android 7.0+ (API 24), target SDK 36.
+Готовый APK: [VaultTerminal-debug-0.1.7.apk](artifacts/VaultTerminal-debug-0.1.7.apk). Это debug-сборка для личной установки, подписанная Android Debug certificate; Google Play её не принимает. Android 7.0+ (API 24), target SDK 36.
 
 Перед установкой перенесите APK на телефон и подтвердите установку из этого источника в настройках Android. При обновлении этой же debug-сборки Android сохранит данные приложения; установка release-сборки с другой подписью потребует удалить debug-версию, поэтому сначала экспортируйте RAW в настройках приложения.
 

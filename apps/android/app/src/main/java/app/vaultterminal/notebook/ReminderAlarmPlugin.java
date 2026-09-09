@@ -61,9 +61,15 @@ public class ReminderAlarmPlugin extends Plugin {
     public void schedule(PluginCall call) {
         String id = call.getString("id");
         String title = call.getString("title");
-        Double at = call.getDouble("at");
-        if(id == null || id.trim().isEmpty() || title == null || title.trim().isEmpty() || at == null || at <= 0) { call.reject("Некорректное системное напоминание"); return; }
-        boolean exact = ReminderAlarmManager.schedule(getContext(), new ReminderAlarmManager.Entry(id, title, call.getString("body", ""), at.longValue()));
+        // JSON parses a JavaScript epoch such as 1788900000000 as Long. PluginCall#getDouble
+        // deliberately does not coerce Long, so accept both integral and fractional input.
+        Long at = call.getLong("at");
+        if(at == null) {
+            Double fractionalAt = call.getDouble("at");
+            if(fractionalAt != null) at = fractionalAt.longValue();
+        }
+        if(id == null || id.trim().isEmpty() || title == null || title.trim().isEmpty() || at == null || at <= 0) { call.reject("Не удалось прочитать время системного напоминания"); return; }
+        boolean exact = ReminderAlarmManager.schedule(getContext(), new ReminderAlarmManager.Entry(id, title, call.getString("body", ""), at));
         JSObject result = new JSObject();
         result.put("exact", exact);
         call.resolve(result);
