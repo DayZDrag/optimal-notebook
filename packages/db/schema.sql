@@ -20,6 +20,17 @@ BEGIN SELECT RAISE(ABORT, 'RAW is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS protect_raw_delete BEFORE DELETE ON raw_notes
 BEGIN SELECT RAISE(ABORT, 'Use explicit retention procedure; RAW cannot be deleted'); END;
 CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, version INTEGER NOT NULL, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS vault_files (
+  path TEXT PRIMARY KEY, sha256 TEXT NOT NULL, content TEXT NOT NULL, size INTEGER NOT NULL,
+  modified_at TEXT NOT NULL, uploaded_at TEXT NOT NULL, version INTEGER NOT NULL
+);
+-- The current mirror is separate from append-only revisions, so an accidental local
+-- edit never erases the prior server copy.
+CREATE TABLE IF NOT EXISTS vault_file_versions (
+  path TEXT NOT NULL, version INTEGER NOT NULL, sha256 TEXT NOT NULL, content TEXT NOT NULL,
+  size INTEGER NOT NULL, modified_at TEXT NOT NULL, uploaded_at TEXT NOT NULL,
+  PRIMARY KEY(path, version)
+);
 CREATE TABLE IF NOT EXISTS mutation_receipts (operation_id TEXT PRIMARY KEY, request TEXT NOT NULL, response TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sync_events (
   sequence INTEGER PRIMARY KEY AUTOINCREMENT, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL,

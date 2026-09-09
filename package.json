@@ -1,6 +1,6 @@
 {
   "name": "vault-terminal",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,7 +17,9 @@
     "seed": "tsx scripts/seed.ts",
     "device:add": "tsx scripts/device.ts add",
     "device:revoke": "tsx scripts/device.ts revoke",
+    "db:migrate:vault-mirror": "tsx scripts/migrate-vault-mirror.ts",
     "desktop:sync": "tsx apps/desktop-sync/src/index.ts",
+    "desktop:export-vault": "tsx apps/desktop-sync/src/index.ts --export-vault",
     "desktop:obsidian-watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/watch-obsidian-sync.ps1",
     "desktop:obsidian-autostart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-obsidian-sync-task.ps1",
     "android:sync": "vite build && cap sync android",

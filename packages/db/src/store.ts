@@ -3,7 +3,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
-import type { Note, NoteInput, Reminder, ReminderMutation, SyncEvent, SyncPage } from '../../shared/src/index';
+import type { Note, NoteInput, Reminder, ReminderMutation, SyncEvent, SyncPage, VaultFileInput, VaultFileMeta, VaultSearchResult } from '../../shared/src/index';
 
 export class ConflictError extends Error {
   constructor(message: string, public current?: unknown) { super(message); }
@@ -16,6 +16,9 @@ export interface StorageAdapter {
   mutateReminder(input: ReminderMutation): { reminder: Reminder; created: boolean } | Promise<{ reminder: Reminder; created: boolean }>;
   getReminder(id: string): Reminder | undefined | Promise<Reminder | undefined>;
   listReminders(): Reminder[] | Promise<Reminder[]>;
+  putVaultFile(input: VaultFileInput): { file: VaultFileMeta; created: boolean } | Promise<{ file: VaultFileMeta; created: boolean }>;
+  listVaultFiles(): VaultFileMeta[] | Promise<VaultFileMeta[]>;
+  searchVaultFiles(query: string): VaultSearchResult[] | Promise<VaultSearchResult[]>;
   sync(cursor: number): SyncPage | Promise<SyncPage>;
   acknowledge(deviceId: string, cursor: number, notes: {id: string; path: string}[]): void | Promise<void>;
   addDevice(id: string, name: string, role: Device['role'], token?: string): void | Promise<void>;
@@ -28,6 +31,14 @@ export interface StorageAdapter {
 }
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 const now = () => new Date().toISOString();
+const vaultMeta = (row: Record<string, unknown>): VaultFileMeta => ({
+  path:String(row.path),sha256:String(row.sha256),size:Number(row.size),modifiedAt:String(row.modified_at),uploadedAt:String(row.uploaded_at),version:Number(row.version),
+});
+function vaultExcerpt(content:string, query:string) {
+  const at=content.toLocaleLowerCase('ru').indexOf(query.toLocaleLowerCase('ru'));
+  const start=Math.max(0,at-120);const end=Math.min(content.length,at+query.length+180);
+  return (start?'…':'')+content.slice(start,end).replace(/\s+/g,' ').trim()+(end<content.length?'…':'');
+}
 export class SqliteStore implements StorageAdapter {
   readonly db: DatabaseSync;
   constructor(path = './data/vault-terminal.sqlite') {
@@ -68,6 +79,25 @@ export class SqliteStore implements StorageAdapter {
     return row ? JSON.parse(String(row.data)) as Reminder : undefined;
   }
   listReminders() { return this.db.prepare('SELECT data FROM reminders').all().map(r => JSON.parse(String(r.data)) as Reminder); }
+  putVaultFile(input: VaultFileInput) {
+    return this.transaction(() => {
+      const previous=this.db.prepare('SELECT * FROM vault_files WHERE path=?').get(input.path) as Record<string, unknown>|undefined;
+      if(previous && String(previous.sha256)===input.sha256) return {file:vaultMeta(previous),created:false};
+      const uploadedAt=now();const version=previous ? Number(previous.version)+1 : 1;const size=Buffer.byteLength(input.content,'utf8');
+      this.db.prepare('INSERT INTO vault_files(path,sha256,content,size,modified_at,uploaded_at,version) VALUES (?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET sha256=excluded.sha256,content=excluded.content,size=excluded.size,modified_at=excluded.modified_at,uploaded_at=excluded.uploaded_at,version=excluded.version').run(input.path,input.sha256,input.content,size,input.modifiedAt,uploadedAt,version);
+      this.db.prepare('INSERT INTO vault_file_versions(path,version,sha256,content,size,modified_at,uploaded_at) VALUES (?,?,?,?,?,?,?)').run(input.path,version,input.sha256,input.content,size,input.modifiedAt,uploadedAt);
+      this.db.prepare('INSERT INTO audit_log(device_id,operation,entity_id,created_at) VALUES (?,?,?,?)').run('desktop-mirror','MIRROR_VAULT_FILE',input.path,uploadedAt);
+      return {file:vaultMeta(this.db.prepare('SELECT * FROM vault_files WHERE path=?').get(input.path) as Record<string,unknown>),created:!previous};
+    });
+  }
+  listVaultFiles() { return this.db.prepare('SELECT path,sha256,size,modified_at,uploaded_at,version FROM vault_files ORDER BY path').all().map(row=>vaultMeta(row as Record<string,unknown>)); }
+  searchVaultFiles(query:string) {
+    const normalized=query.trim().toLocaleLowerCase('ru');if(!normalized)return [];
+    return this.db.prepare('SELECT * FROM vault_files ORDER BY modified_at DESC').all().flatMap(row=>{
+      const record=row as Record<string,unknown>;const content=String(record.content);
+      return content.toLocaleLowerCase('ru').includes(normalized) ? [{...vaultMeta(record),excerpt:vaultExcerpt(content,query)}] : [];
+    }).slice(0,50);
+  }
   mutateReminder(input: ReminderMutation) {
     return this.transaction(() => {
       const receipt = this.db.prepare('SELECT request,response FROM mutation_receipts WHERE operation_id=?').get(input.operationId);
@@ -129,6 +159,8 @@ CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, rol
 CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES devices(id), expires_at BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS raw_notes (id TEXT PRIMARY KEY, device_id TEXT NOT NULL, text TEXT NOT NULL, content_type TEXT NOT NULL, client_created_at TEXT NOT NULL, server_received_at TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'SERVER_RECEIVED', vault_path TEXT, deleted BOOLEAN NOT NULL DEFAULT FALSE);
 CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, version INTEGER NOT NULL, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS vault_files (path TEXT PRIMARY KEY, sha256 TEXT NOT NULL, content TEXT NOT NULL, size INTEGER NOT NULL, modified_at TEXT NOT NULL, uploaded_at TEXT NOT NULL, version INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS vault_file_versions (path TEXT NOT NULL, version INTEGER NOT NULL, sha256 TEXT NOT NULL, content TEXT NOT NULL, size INTEGER NOT NULL, modified_at TEXT NOT NULL, uploaded_at TEXT NOT NULL, PRIMARY KEY(path,version));
 CREATE TABLE IF NOT EXISTS mutation_receipts (operation_id TEXT PRIMARY KEY, request TEXT NOT NULL, response JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS sync_events (sequence BIGSERIAL PRIMARY KEY, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, operation TEXT NOT NULL, payload JSONB NOT NULL, created_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS event_entity ON sync_events(entity_type, entity_id);
@@ -172,6 +204,24 @@ export class PostgresStore implements StorageAdapter {
   async putNote(input: NoteInput) { return this.transaction(async client => { const existing=(await client.query<PgRow>('SELECT * FROM raw_notes WHERE id=$1 FOR UPDATE',[input.id])).rows[0]; if (existing) { const note=asNote(existing); for(const key of ['text','deviceId','clientCreatedAt','contentType','source'] as const) if(input[key]!==note[key]) throw new ConflictError('UUID уже принадлежит другому RAW-оригиналу. Обе версии сохранены на своих устройствах.',note); return {note,created:false}; } const receivedAt=now(); await client.query('INSERT INTO raw_notes(id,device_id,text,content_type,client_created_at,server_received_at,source) VALUES ($1,$2,$3,$4,$5,$6,$7)',[input.id,input.deviceId,input.text,input.contentType,input.clientCreatedAt,receivedAt,input.source]); const note:Note={...input,serverReceivedAt:receivedAt,status:'SERVER_RECEIVED'}; await client.query("INSERT INTO sync_events(entity_type,entity_id,operation,payload,created_at) VALUES ('note',$1,'upsert',$2,$3)",[note.id,JSON.stringify(note),now()]); return {note,created:true}; }); }
   async getReminder(id: string) { const [row]=await this.query('SELECT data FROM reminders WHERE id=$1',[id]); return row ? row.data as Reminder : undefined; }
   async listReminders() { const rows=await this.query('SELECT data FROM reminders'); return rows.map(row=>row.data as Reminder); }
+  async putVaultFile(input: VaultFileInput) {
+    return this.transaction(async client => {
+      const previous=(await client.query<PgRow>('SELECT * FROM vault_files WHERE path=$1 FOR UPDATE',[input.path])).rows[0];
+      if(previous && String(previous.sha256)===input.sha256) return {file:vaultMeta(previous),created:false};
+      const uploadedAt=now();const version=previous ? Number(previous.version)+1 : 1;const size=Buffer.byteLength(input.content,'utf8');
+      await client.query('INSERT INTO vault_files(path,sha256,content,size,modified_at,uploaded_at,version) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(path) DO UPDATE SET sha256=EXCLUDED.sha256,content=EXCLUDED.content,size=EXCLUDED.size,modified_at=EXCLUDED.modified_at,uploaded_at=EXCLUDED.uploaded_at,version=EXCLUDED.version',[input.path,input.sha256,input.content,size,input.modifiedAt,uploadedAt,version]);
+      await client.query('INSERT INTO vault_file_versions(path,version,sha256,content,size,modified_at,uploaded_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[input.path,version,input.sha256,input.content,size,input.modifiedAt,uploadedAt]);
+      await client.query("INSERT INTO audit_log(device_id,operation,entity_id,created_at) VALUES ('desktop-mirror','MIRROR_VAULT_FILE',$1,$2)",[input.path,uploadedAt]);
+      const current=(await client.query<PgRow>('SELECT * FROM vault_files WHERE path=$1',[input.path])).rows[0];
+      return {file:vaultMeta(current),created:!previous};
+    });
+  }
+  async listVaultFiles() { return (await this.query('SELECT path,sha256,size,modified_at,uploaded_at,version FROM vault_files ORDER BY path')).map(vaultMeta); }
+  async searchVaultFiles(query:string) {
+    const normalized=query.trim().toLocaleLowerCase('ru');if(!normalized)return [];
+    const rows=await this.query('SELECT * FROM vault_files ORDER BY modified_at DESC');
+    return rows.flatMap(record=>{const content=String(record.content);return content.toLocaleLowerCase('ru').includes(normalized) ? [{...vaultMeta(record),excerpt:vaultExcerpt(content,query)}] : [];}).slice(0,50);
+  }
   async mutateReminder(input: ReminderMutation) { return this.transaction(async client => { const receipt=(await client.query<PgRow>('SELECT request,response FROM mutation_receipts WHERE operation_id=$1 FOR UPDATE',[input.operationId])).rows[0]; if(receipt) { if(receipt.request!==JSON.stringify(input)) throw new ConflictError('Operation ID уже использован'); return {reminder:receipt.response as Reminder,created:false}; } const oldRow=(await client.query<PgRow>('SELECT data FROM reminders WHERE id=$1 FOR UPDATE',[input.reminder.id])).rows[0]; const old=oldRow?.data as Reminder|undefined; if((old?.version ?? 0)!==input.baseVersion) throw new ConflictError('Напоминание изменено на другом устройстве. Локальная версия осталась в очереди.',old); if(input.reminder.version!==input.baseVersion+1) throw new ConflictError('Некорректная версия напоминания',old); if(old && (old.createdAt!==input.reminder.createdAt || old.noteId!==input.reminder.noteId)) throw new ConflictError('Нельзя изменить происхождение напоминания',old); const reminder=input.reminder; await client.query('INSERT INTO reminders(id,version,data) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET version=EXCLUDED.version,data=EXCLUDED.data',[reminder.id,reminder.version,JSON.stringify(reminder)]); await client.query('INSERT INTO mutation_receipts(operation_id,request,response) VALUES($1,$2,$3)',[input.operationId,JSON.stringify(input),JSON.stringify(reminder)]); await client.query("INSERT INTO sync_events(entity_type,entity_id,operation,payload,created_at) VALUES ('reminder',$1,'upsert',$2,$3)",[reminder.id,JSON.stringify(reminder),now()]); if(reminder.status==='CANCELLED') await client.query("INSERT INTO audit_log(device_id,operation,entity_id,created_at) VALUES($1,'CANCEL_REMINDER',$2,$3)",['device-operation:'+input.operationId,reminder.id,now()]); return {reminder,created:!old}; }); }
   async sync(cursor: number) { const rows=await this.query('SELECT * FROM sync_events WHERE sequence>$1 ORDER BY sequence LIMIT 201',[cursor]); const events=rows.slice(0,200).map(row=>({sequence:Number(row.sequence),entityType:row.entity_type,entityId:row.entity_id,operation:row.operation,payload:row.payload,createdAt:row.created_at})) as SyncEvent[]; return {events,nextCursor:String(events.at(-1)?.sequence ?? cursor),hasMore:rows.length>200}; }
   async acknowledge(deviceId: string,cursor: number,notes: {id:string;path:string}[]) { await this.transaction(async client => { const max=Number((await client.query<PgRow>('SELECT COALESCE(MAX(sequence),0) AS value FROM sync_events')).rows[0].value); if(cursor>max) throw new ConflictError('Cursor за пределами журнала'); for(const item of notes) { const row=(await client.query<PgRow>('SELECT * FROM raw_notes WHERE id=$1 FOR UPDATE',[item.id])).rows[0]; if(!row) throw new ConflictError('Заметка не найдена'); const note=asNote(row); if(note.status==='SERVER_RECEIVED') { await client.query('UPDATE raw_notes SET status=$1,vault_path=$2 WHERE id=$3',[item.path.startsWith('Conflicts/') ? 'NEEDS_REVIEW' : 'VAULT_INBOX',item.path,note.id]); const changed=await client.query<PgRow>('SELECT * FROM raw_notes WHERE id=$1',[note.id]); await client.query("INSERT INTO sync_events(entity_type,entity_id,operation,payload,created_at) VALUES ('note',$1,'upsert',$2,$3)",[note.id,JSON.stringify(asNote(changed.rows[0])),now()]); } } await client.query('UPDATE devices SET cursor=GREATEST(cursor,$1),last_seen_at=$2 WHERE id=$3',[cursor,now(),deviceId]); }); }

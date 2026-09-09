@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { APP_VERSION, MAX_TEXT, type Note, type NoteInput, type Reminder, type ReminderMutation } from '../../../packages/shared/src/index';
+import { APP_VERSION, composeNoteRaw, MAX_TEXT, type Note, type NoteInput, type Reminder, type ReminderMutation } from '../../../packages/shared/src/index';
 
 export interface QueueItem {
   seq?: number; operationId: string; entityType: 'note' | 'reminder'; entityId: string;
@@ -28,13 +28,16 @@ export async function getSettings(database=db): Promise<Settings> {
     await database.settings.put(initial); return initial;
   });
 }
-export async function saveNote(text: string,database=db) {
-  if (!text.trim() || text.length>MAX_TEXT) throw new Error('Введите текст длиной до 100 000 символов');
-  const settings=await getSettings(database);
-  const input:NoteInput={id:crypto.randomUUID(),deviceId:settings.deviceId,text,clientCreatedAt:new Date().toISOString(),contentType:'text/plain',source:'vault-terminal-web'};
-  await database.transaction('rw',database.notes,database.queue,async()=>{
-    await database.notes.add({...input,status:'LOCAL_PENDING'});
-    await database.queue.add({operationId:input.id,entityId:input.id,entityType:'note',payload:input,attempts:0,nextAttemptAt:0});
+export async function saveNote(text: string,titleOrDatabase: string|VaultDB='',database=db) {
+  const title=typeof titleOrDatabase==='string' ? titleOrDatabase : '';
+  const targetDatabase=typeof titleOrDatabase==='string' ? database : titleOrDatabase;
+  const rawText=composeNoteRaw(title,text);
+  if (!rawText.trim() || rawText.length>MAX_TEXT) throw new Error('Введите текст и название общей длиной до 100 000 символов');
+  const settings=await getSettings(targetDatabase);
+  const input:NoteInput={id:crypto.randomUUID(),deviceId:settings.deviceId,text:rawText,clientCreatedAt:new Date().toISOString(),contentType:'text/plain',source:'vault-terminal-web'};
+  await targetDatabase.transaction('rw',targetDatabase.notes,targetDatabase.queue,async()=>{
+    await targetDatabase.notes.add({...input,status:'LOCAL_PENDING'});
+    await targetDatabase.queue.add({operationId:input.id,entityId:input.id,entityType:'note',payload:input,attempts:0,nextAttemptAt:0});
   });
   return input.id;
 }

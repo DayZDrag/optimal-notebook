@@ -14,3 +14,5 @@
 :root[data-size=l] .page-heading p,:root[data-size=l] .reminder-body p,:root[data-size=l] .empty-state p{font-size:14px}
 :root[data-size=s] .capture-panel textarea,:root[data-size=s] .raw-text{font-size:12px}
 :root[data-size=s] .note-preview strong,:root[data-size=s] .reminder-body h3{font-size:11px}
+
+.capture-title{display:flex;flex-direction:column;gap:7px;padding:18px 24px 0;color:var(--muted);font-size:10px}.capture-title>span{color:var(--dim);font-size:9px}.capture-title input{font:13px var(--mono);width:100%;padding:10px 0;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--fg)}.capture-title input:focus-visible{outline:none;border-bottom-color:var(--accent)}.capture-panel textarea{padding-top:21px}.capture-controls{display:flex;align-items:center;gap:15px;min-width:0}.voice-button{padding:9px 12px;min-height:36px;white-space:nowrap}

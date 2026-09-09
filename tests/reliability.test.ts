@@ -11,6 +11,7 @@ import { VaultDB, exportData, getSettings, preserveReminderConflict, saveNote, s
 import { syncNow } from '../apps/web/src/sync';
 import { APP_VERSION, PROTOCOL_VERSION, type NoteInput, type Reminder } from '../packages/shared/src/index';
 import { forwardVercelRequest } from '../apps/server/src/vercel-adapter';
+import { appendVoiceText } from '../apps/web/src/voice';
 
 const stores:SqliteStore[]=[]; const databases:VaultDB[]=[]; const temporary:string[]=[];
 afterEach(async()=>{for(const d of databases.splice(0))await d.delete();for(const s of stores.splice(0))s.close();for(const p of temporary.splice(0))rmSync(p,{recursive:true,force:true});});
@@ -63,6 +64,12 @@ describe('RAW and server durability',()=>{
   });
 });
 describe('offline outbox',()=>{
+  it('stores a user title as a RAW Markdown heading before queuing',async()=>{
+    const {database}=setup();const id=await saveNote('Подробности без изменения\n','План ролика',database);
+    const saved=await database.notes.get(id);const queued=await database.queue.where('entityId').equals(id).first();
+    expect(saved?.text).toBe('# План ролика\n\nПодробности без изменения\n');
+    expect((queued?.payload as NoteInput).text).toBe(saved?.text);
+  });
   it('keeps ten exact originals over a database close and replays after reconnection',async()=>{
     const {database,store,fetcher}=setup();const texts=Array.from({length:10},(_,i)=>`  Мысль ${i}\n🧠\r\n`);
     for(const text of texts)await saveNote(text,database);
@@ -96,6 +103,12 @@ describe('offline outbox',()=>{
     await syncNow(database,fetcher,true);
     expect((await database.queue.toArray())[0].blocked).toBe(true);
     const exported=await exportData(database);expect(exported.notes[0].text).toBe('local original');expect(exported.queue).toHaveLength(1);expect(store.getNote(id)?.text).toBe('remote original');
+  });
+});
+describe('voice draft',()=>{
+  it('adds dictated text to the editable draft without saving it',()=>{
+    expect(appendVoiceText('Первая строка','Вторая строка')).toBe('Первая строка\nВторая строка');
+    expect(appendVoiceText('','  Голосовая мысль  ')).toBe('Голосовая мысль');
   });
 });
 describe('reminders and optimistic concurrency',()=>{

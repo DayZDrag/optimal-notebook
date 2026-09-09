@@ -5,14 +5,14 @@ import { getCookie, setCookie } from 'hono/cookie';
 import { randomBytes } from 'node:crypto';
 import { z, ZodError } from 'zod';
 import { ConflictError, type Device, type StorageAdapter } from '../../../packages/db/src/store';
-import { idSchema, noteInputSchema, PROTOCOL_VERSION, reminderMutationSchema, safeVaultPath } from '../../../packages/shared/src/index';
+import { idSchema, noteInputSchema, PROTOCOL_VERSION, reminderMutationSchema, safeVaultPath, vaultFileInputSchema } from '../../../packages/shared/src/index';
 
 export interface ServerOptions { authRequired: boolean; origin: string | string[]; secureCookies?: boolean }
 export function createApp(store: StorageAdapter, options: ServerOptions) {
   const app = new Hono<{Variables: {device: Device}}>();
   const rates = new Map<string, {count: number; reset: number}>();
   const origins=Array.isArray(options.origin) ? options.origin : [options.origin];
-  app.use('/api/*', cors({origin: origins, credentials: true, allowHeaders: ['Content-Type','Authorization','X-Protocol-Version','X-App-Version','X-Device-Id','X-Device-Role'], allowMethods: ['GET','POST','PATCH','DELETE','OPTIONS']}));
+  app.use('/api/*', cors({origin: origins, credentials: true, allowHeaders: ['Content-Type','Authorization','X-Protocol-Version','X-App-Version','X-Device-Id','X-Device-Role'], allowMethods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS']}));
   app.use('/api/*', bodyLimit({maxSize: 512*1024, onError: c => c.json({error: 'Запрос превышает 512 КБ'}, 413)}));
   app.use('/api/*', async (c, next) => {
     c.header('Cache-Control','no-store'); c.header('X-Content-Type-Options','nosniff');
@@ -67,6 +67,16 @@ export function createApp(store: StorageAdapter, options: ServerOptions) {
   app.get('/api/v1/notes/:id', async c => {
     const note=await store.getNote(idSchema.parse(c.req.param('id')));
     return note ? c.json({note}) : c.json({error:'Заметка не найдена'},404);
+  });
+  app.put('/api/v1/vault/files', async c => {
+    if (c.get('device').role !== 'desktop') return c.json({error:'Выгружать Obsidian может только подключённый ПК-агент'},403);
+    const result=await store.putVaultFile(vaultFileInputSchema.parse(await c.req.json()));
+    return c.json(result,result.created ? 201 : 200);
+  });
+  app.get('/api/v1/vault/files', async c => c.json({files:await store.listVaultFiles()}));
+  app.get('/api/v1/vault/search', async c => {
+    const query=z.string().trim().min(2,'Введите хотя бы два символа').max(200).parse(c.req.query('q') ?? '');
+    return c.json({query,results:await store.searchVaultFiles(query)});
   });
   app.get('/api/v1/sync', async c => {
     const cursor=z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).parse(c.req.query('cursor') ?? '0');

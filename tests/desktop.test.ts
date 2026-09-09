@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { mkdtemp, readFile, readdir, rm, writeFile, symlink } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -8,7 +8,7 @@ import { SqliteStore } from '../packages/db/src/store';
 import { createApp } from '../apps/server/src/app';
 import type { Note } from '../packages/shared/src/index';
 process.env.VT_DESKTOP_EMBEDDED='1';
-const {syncVault}=await import('../apps/desktop-sync/src/index');
+const {exportVault,syncVault}=await import('../apps/desktop-sync/src/index');
 const paths:string[]=[];const stores:SqliteStore[]=[];
 afterEach(async()=>{for(const s of stores.splice(0))s.close();for(const p of paths.splice(0))await rm(p,{recursive:true,force:true});});
 async function directory(){const p=await mkdtemp(join(tmpdir(),'vt-desktop-'));paths.push(p);return p;}
@@ -38,4 +38,16 @@ it('replays safely after the server commits an ACK but the response is lost',asy
   const options={root,deviceId:randomUUID(),serverUrl:'http://localhost',fetcher};
   await expect(syncVault(options)).rejects.toThrow('ACK lost');await syncVault(options);await syncVault(options);
   expect(await readdir(join(root,'00_Inbox'))).toHaveLength(1);expect(store.getNote(input.id)?.status).toBe('VAULT_INBOX');
+});
+it('exports only vault Markdown, excludes hidden configuration, and preserves server revisions',async()=>{
+  const root=await directory();const store=new SqliteStore(':memory:');stores.push(store);const app=createApp(store,{authRequired:false,origin:'http://localhost'});
+  await writeFile(join(root,'Главная.md'),'Первая версия: лесной маяк','utf8');await mkdir(join(root,'Ideas'),{recursive:true});await writeFile(join(root,'Ideas','План.md'),'Идея про маяк','utf8');
+  await mkdir(join(root,'.obsidian'),{recursive:true});await writeFile(join(root,'.obsidian','секрет.md'),'не выгружать','utf8');
+  const fetcher:typeof fetch=async(url,init)=>app.request(String(url),init);
+  const options={root,deviceId:randomUUID(),serverUrl:'http://localhost',fetcher};
+  expect(await exportVault(options)).toMatchObject({scanned:2,created:2});expect(store.listVaultFiles().map(file=>file.path)).toEqual(['Ideas/План.md','Главная.md']);
+  await writeFile(join(root,'Главная.md'),'Вторая версия: лесной маяк','utf8');await exportVault(options);
+  expect(store.searchVaultFiles('вторая версия')).toHaveLength(1);expect(store.db.prepare('SELECT COUNT(*) AS value FROM vault_file_versions WHERE path=?').get('Главная.md')?.value).toBe(2);
+  await writeFile(join(root,'Главная.md'),'Первая версия: лесной маяк','utf8');await exportVault(options);
+  expect(store.db.prepare('SELECT COUNT(*) AS value FROM vault_file_versions WHERE path=?').get('Главная.md')?.value).toBe(3);
 });
