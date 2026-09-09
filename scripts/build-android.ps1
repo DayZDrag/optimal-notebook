@@ -11,7 +11,7 @@ $gradle = Join-Path $workspace 'apps\android\gradlew.bat'
 $androidProject = Join-Path $workspace 'apps\android'
 $apk = Join-Path $workspace 'apps\android\app\build\outputs\apk\debug\app-debug.apk'
 $artifactDirectory = Join-Path $workspace 'artifacts'
-$artifact = Join-Path $artifactDirectory 'VaultTerminal-debug-0.1.5.apk'
+$artifact = Join-Path $artifactDirectory 'VaultTerminal-debug-0.1.6.apk'
 
 if (-not (Test-Path -LiteralPath (Join-Path $sdk 'platforms\android-36'))) { throw 'Android SDK Platform 36 is missing.' }
 if (-not (Test-Path -LiteralPath $gradle)) { throw 'Android project is missing. Run npx cap add android.' }
