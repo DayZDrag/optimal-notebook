@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PROTOCOL_VERSION = '1';
-export const APP_VERSION = '0.1.7';
+export const APP_VERSION = '0.1.8';
 export const MAX_TEXT = 100_000;
 export const MAX_NOTE_TITLE = 160;
 /** Markdown mirror uploads are deliberately smaller than the API body limit. */

@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowRight, Archive, Bell, Check, CheckCheck, ChevronR
 import { db, exportData, getSettings, preserveReminderConflict, saveNote, saveReminder, type Settings } from './db';
 import { api, scheduleSync, syncNow } from './sync';
 import { exportNativeJson, isNativeAndroid } from './native';
-import { acknowledgeNativeReminderActions, enableNativeReminders, nativeReminderStatus, readNativeReminderActions, reconcileNativeReminders, type NativeReminderStatus } from './reminders-native';
+import { acknowledgeNativeReminderActions, enableNativeReminders, nativeReminderStatus, readNativeReminderActions, reconcileNativeReminders, testNativeReminder, type NativeReminderStatus } from './reminders-native';
 import { APP_VERSION, MAX_NOTE_TITLE, MAX_TEXT, statusLabels, type Note, type Reminder, type VaultSearchResult } from '../../../packages/shared/src/index';
 import { appendVoiceText, dictate, voiceInputAvailable } from './voice';
 
@@ -132,7 +132,7 @@ export default function App() {
     const state=await enableNativeReminders();
     setNativeReminderAccess(state);
     await reconcileNativeReminders(reminders);
-    setMessage(state?.notifications?'Разрешите «Будильники и напоминания» в открытых настройках Android.':'Разрешите уведомления Android для всплывающих напоминаний.');
+    setMessage(!state?.notifications?'Разрешите уведомления Android и вернитесь в приложение.':!state.exactAlarms?'Включите «Будильники и напоминания», вернитесь и нажмите кнопку ещё раз.':!state.fullScreen?'Разрешите полноэкранные уведомления Android.':'Все системные разрешения для напоминаний включены.');
   }
   async function searchVault(event:FormEvent) {
     event.preventDefault();const text=query.trim();if(text.length<2)throw new Error('Введите хотя бы два символа для поиска в Obsidian.');
@@ -186,7 +186,11 @@ export default function App() {
 }
 
 function PageHeading({code,title,description}:{code:string;title:string;description:string}) {return <div className="page-heading"><div><div className="eyebrow"><span/>{code}</div><h1>{title}<span className="accent">.</span></h1><p>{description}</p></div></div>;}
-function NativeReminderInfo({access,onEnable}:{access:NativeReminderStatus|undefined;onEnable:()=>void}) {return <div className="info-line"><CircleHelp size={17}/><span>{access?.notifications&&access.exactAlarms?'Системный будильник, вибрация и всплывающее уведомление включены.':'Чтобы напоминания работали после закрытия приложения, включите системные разрешения Android.'}</span><button className="secondary" onClick={onEnable}>Включить Android-напоминания</button></div>;}
+function NativeReminderInfo({access,onEnable}:{access:NativeReminderStatus|undefined;onEnable:()=>void}) {
+  const [testMessage,setTestMessage]=useState('');const ready=!!access?.notifications&&!!access.exactAlarms;
+  const test=async()=>{setTestMessage('Ставим проверку…');try{const result=await testNativeReminder();setTestMessage(result.exact?'Закройте приложение: сигнал будет через 15 секунд.':'Сначала включите доступ «Будильники и напоминания».');}catch(error){setTestMessage(errorText(error));}};
+  return <div className="info-line"><CircleHelp size={17}/><span>{`Уведомления: ${access?.notifications?'да':'нет'} · точное время: ${access?.exactAlarms?'да':'нет'} · всплывающее окно: ${access?.fullScreen?'да':'нет'}. `}{testMessage||(!ready?'Нажимайте «Включить» после возврата из каждого экрана Android.':'Системный будильник готов работать при закрытом приложении.')}</span><button className="secondary" onClick={onEnable}>Включить</button><button className="secondary" disabled={!ready} onClick={()=>void test()}>Проверить через 15 секунд</button></div>;
+}
 function Empty({icon,title,text}:{icon:ReactNode;title:string;text:string}) {return <div className="empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{text}</p></div>;}
 function Tabs({value,onChange,items}:{value:string;onChange:(s:string)=>void;items:string[][]}) {return <div className="tabs">{items.map(([id,label])=><button key={id} className={value===id?'active':''} onClick={()=>onChange(id)} aria-pressed={value===id}>{label}</button>)}</div>;}
 function noteDisplayTitle(note:Note) { return note.text.split('\n').find(t=>t.trim())?.replace(/^#{1,6}\s+/, '') || 'Без названия'; }

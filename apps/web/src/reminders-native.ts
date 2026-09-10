@@ -17,8 +17,10 @@ export interface NativeReminderAction {
 interface ReminderAlarmPlugin {
   status(): Promise<NativeReminderStatus>;
   requestNotificationPermission(): Promise<NativeReminderStatus>;
+  openNotificationSettings(): Promise<NativeReminderStatus>;
   openExactAlarmSettings(): Promise<NativeReminderStatus>;
   openFullScreenSettings(): Promise<NativeReminderStatus>;
+  scheduleTest(): Promise<{exact:boolean}>;
   schedule(options:{id:string;title:string;body:string;at:number}): Promise<{exact:boolean}>;
   cancel(options:{id:string}): Promise<void>;
   getPendingActions(): Promise<{actions:NativeReminderAction[]}>;
@@ -37,8 +39,16 @@ export async function nativeReminderStatus():Promise<NativeReminderStatus|undefi
 export async function enableNativeReminders():Promise<NativeReminderStatus|undefined> {
   if(!isNativeAndroid())return undefined;
   const afterNotification=await ReminderAlarm.requestNotificationPermission();
-  if(!afterNotification.exactAlarms)await ReminderAlarm.openExactAlarmSettings();
+  if(!afterNotification.notifications)await ReminderAlarm.openNotificationSettings();
+  else if(!afterNotification.exactAlarms)await ReminderAlarm.openExactAlarmSettings();
+  else if(!afterNotification.fullScreen)await ReminderAlarm.openFullScreenSettings();
   return afterNotification;
+}
+
+/** Schedules a native alarm 15 seconds ahead so delivery can be tested with the WebView closed. */
+export async function testNativeReminder() {
+  if(!isNativeAndroid())throw new Error('Системная проверка доступна только в Android APK');
+  return ReminderAlarm.scheduleTest();
 }
 
 /** Each call replaces only the same id's system alarm. Cancelled/finished items are removed. */

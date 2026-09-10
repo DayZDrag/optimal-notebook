@@ -25,6 +25,7 @@ final class ReminderAlarmManager {
     static final String ACTION_SNOOZE = "app.vaultterminal.notebook.REMINDER_SNOOZE";
     static final String ACTION_OPEN = "app.vaultterminal.notebook.REMINDER_OPEN";
     static final String CHANNEL_ID = "vault_terminal_reminders";
+    private static final String TEST_PREFIX = "__test__:";
     private static final String PREFS = "vault_terminal_reminders";
     private static final String SCHEDULE_PREFIX = "schedule:";
     private static final String ACTION_PREFIX = "action:";
@@ -81,8 +82,18 @@ final class ReminderAlarmManager {
         return PendingIntent.getBroadcast(context, requestCode(action + entry.id), intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
+    private static PendingIntent openIntent(Context context, Entry entry) {
+        Intent open = new Intent(context, MainActivity.class)
+                .setAction(ACTION_OPEN)
+                .setData(Uri.parse("vaultterminal://reminders/" + Uri.encode(entry.id)))
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra("openReminders", true);
+        return PendingIntent.getActivity(context, requestCode("open" + entry.id), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
     static boolean notificationsAllowed(Context context) {
-        return Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean runtimeAllowed = Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        return runtimeAllowed && NotificationManagerCompat.from(context).areNotificationsEnabled();
     }
 
     static boolean exactAlarmsAllowed(Context context) {
@@ -110,9 +121,26 @@ final class ReminderAlarmManager {
         PendingIntent pending = receiverIntent(context, ACTION_FIRE, entry);
         alarm.cancel(pending);
         boolean exact = exactAlarmsAllowed(context);
-        if(exact) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, Math.max(entry.at, System.currentTimeMillis() + 1_000L), pending);
-        else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, Math.max(entry.at, System.currentTimeMillis() + 1_000L), pending);
+        long triggerAt = Math.max(entry.at, System.currentTimeMillis() + 1_000L);
+        try {
+            if(exact) {
+                // A user-visible alarm clock is Android's strongest offline scheduling class:
+                // it wakes from Doze and is not shifted by battery-saving batching.
+                AlarmManager.AlarmClockInfo alarmClock = new AlarmManager.AlarmClockInfo(triggerAt, openIntent(context, entry));
+                alarm.setAlarmClock(alarmClock, pending);
+            } else {
+                alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending);
+            }
+        } catch(SecurityException denied) {
+            exact = false;
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending);
+        }
         return exact;
+    }
+
+    static boolean scheduleTest(Context context) {
+        long at = System.currentTimeMillis() + 15_000L;
+        return schedule(context, new Entry(TEST_PREFIX + at, "Проверка напоминаний", "Системный будильник Vault Terminal работает", at));
     }
 
     static void cancel(Context context, String id) {
@@ -137,16 +165,12 @@ final class ReminderAlarmManager {
     }
 
     static void fire(Context context, Entry entry) {
+        boolean test = entry.id.startsWith(TEST_PREFIX);
         preferences(context).edit().remove(SCHEDULE_PREFIX + entry.id).apply();
-        recordAction(context, entry.id, "FIRED", entry.at);
+        if(!test)recordAction(context, entry.id, "FIRED", entry.at);
         if(!notificationsAllowed(context))return;
         ensureChannel(context);
-        Intent open = new Intent(context, MainActivity.class)
-                .setAction(ACTION_OPEN)
-                .setData(Uri.parse("vaultterminal://reminders/" + Uri.encode(entry.id)))
-                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                .putExtra("openReminders", true);
-        PendingIntent openPending = PendingIntent.getActivity(context, requestCode("open" + entry.id), open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent openPending = openIntent(context, entry);
         PendingIntent done = receiverIntent(context, ACTION_DONE, entry);
         PendingIntent snooze = receiverIntent(context, ACTION_SNOOZE, entry);
         String body = entry.body.isEmpty() ? "Пора вернуться к этой мысли" : entry.body;
@@ -160,8 +184,9 @@ final class ReminderAlarmManager {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openPending)
                 .setFullScreenIntent(openPending, true)
-                .setOngoing(true)
-                .setAutoCancel(false)
+                .setOngoing(!test)
+                .setAutoCancel(test);
+        if(!test)notification
                 .addAction(R.drawable.ic_stat_reminder, "Готово", done)
                 .addAction(R.drawable.ic_stat_reminder, "На 10 минут", snooze);
         NotificationManagerCompat.from(context).notify(requestCode(entry.id), notification.build());
@@ -205,7 +230,7 @@ final class ReminderAlarmManager {
         catch(JSONException ignored) { return null; }
     }
 
-    private static void ensureChannel(Context context) {
+    static void ensureChannel(Context context) {
         if(Build.VERSION.SDK_INT < 26)return;
         NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Напоминания", NotificationManager.IMPORTANCE_HIGH);
         channel.setDescription("Будильники и напоминания Vault Terminal");

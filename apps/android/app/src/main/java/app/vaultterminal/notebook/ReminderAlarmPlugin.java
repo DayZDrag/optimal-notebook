@@ -20,6 +20,7 @@ import java.util.Map;
 })
 public class ReminderAlarmPlugin extends Plugin {
     private JSObject status() {
+        ReminderAlarmManager.ensureChannel(getContext());
         JSObject result = new JSObject();
         result.put("notifications", ReminderAlarmManager.notificationsAllowed(getContext()));
         result.put("exactAlarms", ReminderAlarmManager.exactAlarmsAllowed(getContext()));
@@ -55,6 +56,25 @@ public class ReminderAlarmPlugin extends Plugin {
             getActivity().startActivity(intent);
         }
         call.resolve(status());
+    }
+
+    @PluginMethod
+    public void openNotificationSettings(PluginCall call) {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+        getActivity().startActivity(intent);
+        call.resolve(status());
+    }
+
+    @PluginMethod
+    public void scheduleTest(PluginCall call) {
+        if(!ReminderAlarmManager.notificationsAllowed(getContext())) {
+            call.reject("Сначала разрешите уведомления Android");
+            return;
+        }
+        JSObject result = new JSObject();
+        result.put("exact", ReminderAlarmManager.scheduleTest(getContext()));
+        call.resolve(result);
     }
 
     @PluginMethod
