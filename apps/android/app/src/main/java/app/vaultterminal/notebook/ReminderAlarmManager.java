@@ -1,6 +1,7 @@
 package app.vaultterminal.notebook;
 
 import android.app.AlarmManager;
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -63,7 +64,7 @@ final class ReminderAlarmManager {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    private static int requestCode(String key) {
+    static int requestCode(String key) {
         return key.hashCode() & 0x7fffffff;
     }
 
@@ -143,6 +144,11 @@ final class ReminderAlarmManager {
         return schedule(context, new Entry(TEST_PREFIX + at, "Проверка напоминаний", "Системный будильник Vault Terminal работает", at));
     }
 
+    static void testNow(Context context) {
+        long at = System.currentTimeMillis();
+        fire(context, new Entry(TEST_PREFIX + at, "Проверка напоминаний", "Звук и вибрация Vault Terminal работают", at));
+    }
+
     static void cancel(Context context, String id) {
         Entry placeholder = new Entry(id, "", "", 0);
         AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
@@ -150,6 +156,7 @@ final class ReminderAlarmManager {
         alarm.cancel(pending);
         pending.cancel();
         preferences(context).edit().remove(SCHEDULE_PREFIX + id).apply();
+        ReminderAlarmService.stop(context, id);
         NotificationManagerCompat.from(context).cancel(requestCode(id));
     }
 
@@ -170,6 +177,18 @@ final class ReminderAlarmManager {
         if(!test)recordAction(context, entry.id, "FIRED", entry.at);
         if(!notificationsAllowed(context))return;
         ensureChannel(context);
+        try {
+            ReminderAlarmService.start(context, entry);
+        } catch(RuntimeException denied) {
+            // If an OEM refuses the foreground-service start, keep the system
+            // notification fallback rather than losing the reminder entirely.
+            NotificationManagerCompat.from(context).notify(requestCode(entry.id), buildNotification(context, entry));
+        }
+    }
+
+    static Notification buildNotification(Context context, Entry entry) {
+        boolean test = entry.id.startsWith(TEST_PREFIX);
+        ensureChannel(context);
         PendingIntent openPending = openIntent(context, entry);
         PendingIntent done = receiverIntent(context, ACTION_DONE, entry);
         PendingIntent snooze = receiverIntent(context, ACTION_SNOOZE, entry);
@@ -184,12 +203,14 @@ final class ReminderAlarmManager {
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setContentIntent(openPending)
                 .setFullScreenIntent(openPending, true)
+                .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
                 .setOngoing(!test)
                 .setAutoCancel(test);
-        if(!test)notification
+        if(test)notification.addAction(R.drawable.ic_stat_reminder, "Остановить", done);
+        else notification
                 .addAction(R.drawable.ic_stat_reminder, "Готово", done)
                 .addAction(R.drawable.ic_stat_reminder, "На 10 минут", snooze);
-        NotificationManagerCompat.from(context).notify(requestCode(entry.id), notification.build());
+        return notification.build();
     }
 
     static void snooze(Context context, Entry entry) {
@@ -202,7 +223,7 @@ final class ReminderAlarmManager {
 
     static void done(Context context, Entry entry) {
         cancel(context, entry.id);
-        recordAction(context, entry.id, "DONE", entry.at);
+        if(!entry.id.startsWith(TEST_PREFIX))recordAction(context, entry.id, "DONE", entry.at);
     }
 
     private static void recordAction(Context context, String id, String status, long at) {

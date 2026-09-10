@@ -78,6 +78,16 @@ public class ReminderAlarmPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void testNow(PluginCall call) {
+        if(!ReminderAlarmManager.notificationsAllowed(getContext())) {
+            call.reject("Сначала разрешите уведомления Android");
+            return;
+        }
+        ReminderAlarmManager.testNow(getContext());
+        call.resolve();
+    }
+
+    @PluginMethod
     public void schedule(PluginCall call) {
         String id = call.getString("id");
         String title = call.getString("title");

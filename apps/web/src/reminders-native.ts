@@ -21,6 +21,7 @@ interface ReminderAlarmPlugin {
   openExactAlarmSettings(): Promise<NativeReminderStatus>;
   openFullScreenSettings(): Promise<NativeReminderStatus>;
   scheduleTest(): Promise<{exact:boolean}>;
+  testNow(): Promise<void>;
   schedule(options:{id:string;title:string;body:string;at:number}): Promise<{exact:boolean}>;
   cancel(options:{id:string}): Promise<void>;
   getPendingActions(): Promise<{actions:NativeReminderAction[]}>;
@@ -49,6 +50,11 @@ export async function enableNativeReminders():Promise<NativeReminderStatus|undef
 export async function testNativeReminder() {
   if(!isNativeAndroid())throw new Error('Системная проверка доступна только в Android APK');
   return ReminderAlarm.scheduleTest();
+}
+
+export async function testNativeReminderNow() {
+  if(!isNativeAndroid())throw new Error('Системная проверка доступна только в Android APK');
+  return ReminderAlarm.testNow();
 }
 
 /** Each call replaces only the same id's system alarm. Cancelled/finished items are removed. */

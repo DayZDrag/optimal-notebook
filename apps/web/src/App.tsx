@@ -5,7 +5,7 @@ import { ArrowDownToLine, ArrowRight, Archive, Bell, Check, CheckCheck, ChevronR
 import { db, exportData, getSettings, preserveReminderConflict, saveNote, saveReminder, type Settings } from './db';
 import { api, scheduleSync, syncNow } from './sync';
 import { exportNativeJson, isNativeAndroid } from './native';
-import { acknowledgeNativeReminderActions, enableNativeReminders, nativeReminderStatus, readNativeReminderActions, reconcileNativeReminders, testNativeReminder, type NativeReminderStatus } from './reminders-native';
+import { acknowledgeNativeReminderActions, enableNativeReminders, nativeReminderStatus, readNativeReminderActions, reconcileNativeReminders, testNativeReminder, testNativeReminderNow, type NativeReminderStatus } from './reminders-native';
 import { APP_VERSION, MAX_NOTE_TITLE, MAX_TEXT, statusLabels, type Note, type Reminder, type VaultSearchResult } from '../../../packages/shared/src/index';
 import { appendVoiceText, dictate, voiceInputAvailable } from './voice';
 
@@ -189,7 +189,8 @@ function PageHeading({code,title,description}:{code:string;title:string;descript
 function NativeReminderInfo({access,onEnable}:{access:NativeReminderStatus|undefined;onEnable:()=>void}) {
   const [testMessage,setTestMessage]=useState('');const ready=!!access?.notifications&&!!access.exactAlarms;
   const test=async()=>{setTestMessage('Ставим проверку…');try{const result=await testNativeReminder();setTestMessage(result.exact?'Закройте приложение: сигнал будет через 15 секунд.':'Сначала включите доступ «Будильники и напоминания».');}catch(error){setTestMessage(errorText(error));}};
-  return <div className="info-line"><CircleHelp size={17}/><span>{`Уведомления: ${access?.notifications?'да':'нет'} · точное время: ${access?.exactAlarms?'да':'нет'} · всплывающее окно: ${access?.fullScreen?'да':'нет'}. `}{testMessage||(!ready?'Нажимайте «Включить» после возврата из каждого экрана Android.':'Системный будильник готов работать при закрытом приложении.')}</span><button className="secondary" onClick={onEnable}>Включить</button><button className="secondary" disabled={!ready} onClick={()=>void test()}>Проверить через 15 секунд</button></div>;
+  const testNow=async()=>{setTestMessage('Проверяем звук…');try{await testNativeReminderNow();setTestMessage('Сигнал запущен. Остановите его в уведомлении.');}catch(error){setTestMessage(errorText(error));}};
+  return <div className="info-line"><CircleHelp size={17}/><span>{`Уведомления: ${access?.notifications?'да':'нет'} · точное время: ${access?.exactAlarms?'да':'нет'} · всплывающее окно: ${access?.fullScreen?'да':'нет'}. `}{testMessage||(!ready?'Нажимайте «Включить» после возврата из каждого экрана Android.':'Системный будильник готов работать при закрытом приложении.')}</span><button className="secondary" onClick={onEnable}>Включить</button><button className="secondary" disabled={!access?.notifications} onClick={()=>void testNow()}>Проверить звук сейчас</button><button className="secondary" disabled={!ready} onClick={()=>void test()}>Проверить через 15 секунд</button></div>;
 }
 function Empty({icon,title,text}:{icon:ReactNode;title:string;text:string}) {return <div className="empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{text}</p></div>;}
 function Tabs({value,onChange,items}:{value:string;onChange:(s:string)=>void;items:string[][]}) {return <div className="tabs">{items.map(([id,label])=><button key={id} className={value===id?'active':''} onClick={()=>onChange(id)} aria-pressed={value===id}>{label}</button>)}</div>;}
